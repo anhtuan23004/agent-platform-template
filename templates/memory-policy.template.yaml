@@ -1,0 +1,44 @@
+# TEMPLATE ONLY — policy design artifact, không phải storage/provider config.
+template_kind: memory_policy
+template_version: '1.0'
+policy:
+  id: '{{POLICY_ID}}'
+  owner: '{{DATA_OWNER}}'
+  applies_to_agents: ['{{AGENT_ID}}']
+  lawful_purpose: '{{PURPOSE}}'
+memory_classes:
+  - name: '{{WORKING_CONVERSATION_SEMANTIC_EPISODIC}}'
+    system_of_record: '{{RUNTIME_PLATFORM_DOMAIN}}'
+    allowed_data: ['{{DATA_CATEGORY}}']
+    prohibited_data: ['{{SECRET_CREDENTIAL_OR_CATEGORY}}']
+    classification: '{{CLASSIFICATION}}'
+    consent: '{{NOT_REQUIRED_EXPLICIT_OR_LEGAL_BASIS}}'
+    retention: '{{DURATION_OR_SESSION_ONLY}}'
+    deletion_sla: '{{DURATION}}'
+    encryption: '{{CONTROL}}'
+write_policy:
+  provenance_required: true
+  minimum_confidence: '{{NUMBER_0_TO_1}}'
+  human_confirmation_rule: '{{RULE}}'
+  deduplication_and_conflict_rule: '{{RULE}}'
+  audit_event: '{{EVENT_TYPE}}'
+read_policy:
+  hard_filters: ['tenant_id', '{{ACTOR_PURPOSE_CLASSIFICATION_FILTER}}']
+  retrieval_limit: '{{TOP_K_AND_CONTEXT_BUDGET}}'
+  freshness_window: '{{DURATION}}'
+  retrieved_text_is_untrusted: true
+  provenance_in_context: true
+privacy:
+  export_process: '{{PROCESS_REFERENCE}}'
+  correction_process: '{{PROCESS_REFERENCE}}'
+  delete_and_tombstone_process: '{{PROCESS_REFERENCE}}'
+  derived_index_deletion_sla: '{{DURATION}}'
+security:
+  tenant_isolation_control: '{{CONTROL}}'
+  pii_redaction: '{{CONTROL}}'
+  prompt_injection_defense: '{{CONTROL}}'
+evaluation:
+  retrieval_precision_threshold: '{{THRESHOLD}}'
+  stale_memory_rate_threshold: '{{THRESHOLD}}'
+  leakage_test_reference: '{{TEST_SUITE}}'
+

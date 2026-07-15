@@ -1,0 +1,57 @@
+name: UAT — Clear Caches
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Which caches to clear'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - docker
+          - actions
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  clear-caches:
+    name: Clear ${{ github.event.inputs.target }} caches
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Clear GitHub Actions cache
+        if: inputs.target == 'all' || inputs.target == 'actions'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const caches = await github.rest.actions.getActionsCacheList({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+            for (const cache of caches.data.actions_caches) {
+              console.log(`Deleting cache: ${cache.key} (${cache.size_in_bytes} bytes)`);
+              await github.rest.actions.deleteActionsCacheById({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                cache_id: cache.id,
+              });
+            }
+            console.log(`Deleted ${caches.data.total_count} caches`);
+
+      - name: Clear Docker build cache on Cloud Server
+        if: inputs.target == 'all' || inputs.target == 'docker'
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ vars.UAT_HOST }}
+          username: ${{ vars.UAT_USER || 'ubuntu' }}
+          key: ${{ secrets.UAT_SSH_PRIVATE_KEY }}
+          script: |
+            echo "=== Pruning Docker build cache ==="
+            docker builder prune -af
+            docker image prune -af
+            echo "=== Docker cache cleared ==="

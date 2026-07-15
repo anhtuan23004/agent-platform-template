@@ -1,0 +1,47 @@
+# TEMPLATE ONLY — workflow design, không được dùng trực tiếp làm executable graph.
+template_kind: workflow_plan
+template_version: '1.0'
+workflow:
+  id: '{{WORKFLOW_ID}}'
+  version: '{{VERSION}}'
+  owner: '{{OWNER}}'
+  goal: '{{BOUNDED_GOAL}}'
+  planning_mode: '{{DETERMINISTIC_GRAPH_OR_BOUNDED_ADAPTIVE}}'
+preconditions: ['{{VALIDATED_PRECONDITION}}']
+state_contract:
+  schema_reference: '{{STATE_SCHEMA}}'
+  sensitive_fields: ['{{FIELD_PATH}}']
+  persisted_product_fields: ['{{FIELD_PATH}}']
+  runtime_checkpoint_fields: ['{{FIELD_PATH}}']
+budgets:
+  max_steps: '{{INTEGER}}'
+  deadline: '{{DURATION}}'
+  token_or_cost: '{{LIMIT}}'
+steps:
+  - id: '{{STEP_ID}}'
+    purpose: '{{PURPOSE}}'
+    kind: '{{DETERMINISTIC_MODEL_TOOL_APPROVAL}}'
+    allowed_tools: ['{{TOOL_ID}}']
+    effect: '{{READ_OR_WRITE_CLASS}}'
+    entry_condition: '{{VALIDATED_CONDITION}}'
+    success_transition: '{{NEXT_STEP_OR_TERMINAL}}'
+    failure_transition: '{{NEXT_STEP_OR_TERMINAL}}'
+    retry: '{{BOUNDED_POLICY}}'
+    idempotency_scope: '{{SCOPE_OR_NOT_APPLICABLE}}'
+checkpoints:
+  - at: '{{STEP_ID_OR_TRANSITION}}'
+    reason: '{{CRASH_RECOVERY_OR_HITL}}'
+    approval_policy_reference: '{{REFERENCE_OR_NOT_APPLICABLE}}'
+terminal_states: ['completed', 'failed', 'cancelled', 'expired']
+replanning:
+  allowed: '{{TRUE_OR_FALSE}}'
+  boundary: '{{WHAT_MAY_CHANGE}}'
+  escalation_trigger: '{{SCOPE_OR_RISK_CHANGE}}'
+recovery:
+  reconciliation: '{{PROCESS}}'
+  compensation_by_step: ['{{STEP_AND_COMPENSATION}}']
+  manual_runbook: '{{REFERENCE}}'
+tests:
+  paths: ['{{HAPPY_BRANCH_FAILURE_RESUME_PATH}}']
+  invariants: ['{{NO_DUPLICATE_WRITE_OR_OTHER_INVARIANT}}']
+

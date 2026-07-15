@@ -1,0 +1,57 @@
+# TEMPLATE ONLY — không phải runtime config; không chứa secrets.
+# Thay mọi giá trị {{PLACEHOLDER}} và validate bằng governance process của tổ chức.
+template_kind: agent_contract
+template_version: '1.0'
+agent:
+  id: '{{AGENT_ID}}'
+  display_name: '{{DISPLAY_NAME}}'
+  owner: '{{TEAM_OR_ROLE}}'
+  version: '{{SEMANTIC_VERSION}}'
+  purpose: '{{ONE_NARROW_PURPOSE}}'
+  risk_tier: '{{LOW_MEDIUM_HIGH_CRITICAL}}'
+scope:
+  users: ['{{ALLOWED_USER_OR_ROLE}}']
+  tenants: '{{TENANT_SCOPE_RULE}}'
+  in_scope: ['{{SUPPORTED_TASK}}']
+  prohibited: ['{{PROHIBITED_ACTION}}']
+input_contract:
+  schema_reference: '{{SCHEMA_REFERENCE}}'
+  classifications_allowed: ['{{DATA_CLASSIFICATION}}']
+  max_size: '{{LIMIT_WITH_UNIT}}'
+output_contract:
+  schema_reference: '{{SCHEMA_REFERENCE}}'
+  required_evidence: ['{{CITATION_OR_PROVENANCE_RULE}}']
+  canonical_stream_contract: '{{STREAM_EVENT_CONTRACT_REFERENCE}}'
+planning:
+  mode: '{{DETERMINISTIC_GRAPH_OR_ADAPTIVE_LOOP}}'
+  max_steps: '{{POSITIVE_INTEGER}}'
+  timeout: '{{DURATION}}'
+  replanning_boundary: '{{RULE}}'
+tools:
+  allowlist: ['{{TOOL_ID_AND_VERSION}}']
+  default_write_policy: '{{DENY_OR_REQUIRE_APPROVAL}}'
+memory:
+  policy_reference: '{{MEMORY_POLICY_REFERENCE}}'
+  context_budget: '{{TOKEN_OR_ITEM_LIMIT}}'
+guardrails:
+  hitl_policy_reference: '{{HITL_POLICY_REFERENCE}}'
+  confidence_escalation_threshold: '{{NUMBER_0_TO_1}}'
+  cost_budget: '{{CURRENCY_AND_AMOUNT_PER_RUN}}'
+  rate_limit: '{{LIMIT_PER_ACTOR_OR_TENANT}}'
+runtime_portability:
+  required_ports: ['{{CHAT_WORKFLOW_MEMORY_CHECKPOINT_PORT}}']
+  public_contract_must_not_expose_vendor_types: true
+audit:
+  event_schema_reference: '{{AUDIT_EVENT_REFERENCE}}'
+  retention_policy_reference: '{{RETENTION_REFERENCE}}'
+evaluation:
+  dataset_reference: '{{EVAL_DATASET}}'
+  acceptance_thresholds:
+    task_success: '{{THRESHOLD}}'
+    unsafe_action_rate: '{{THRESHOLD}}'
+    cross_tenant_leakage: '0'
+operations:
+  kill_switch_owner: '{{ROLE}}'
+  runbook_reference: '{{RUNBOOK}}'
+  support_slo: '{{SLO}}'
+

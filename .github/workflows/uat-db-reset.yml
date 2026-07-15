@@ -1,0 +1,70 @@
+name: UAT — DB Reset & Seed
+
+on:
+  workflow_dispatch:
+    inputs:
+      tenant:
+        description: 'Tenant slug (default: uat)'
+        required: false
+        default: 'uat'
+      admin_email:
+        description: 'Admin email'
+        required: false
+        default: 'admin@example.com'
+      password:
+        description: 'Default password for seeded users'
+        required: false
+        default: 'ChangeMe@2026'
+
+concurrency:
+  group: uat-db-seed
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  db-seed:
+    name: Reset DB & seed → ${{ github.event.inputs.tenant }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: uat
+    steps:
+      - name: SSH reset & seed
+        uses: appleboy/ssh-action@v1.2.5
+        env:
+          TENANT: ${{ github.event.inputs.tenant }}
+          ADMIN_EMAIL: ${{ github.event.inputs.admin_email }}
+          SEED_PASSWORD: ${{ github.event.inputs.password }}
+        with:
+          host: ${{ vars.UAT_HOST }}
+          username: ${{ vars.UAT_USER || 'ubuntu' }}
+          key: ${{ secrets.UAT_SSH_PRIVATE_KEY }}
+          envs: TENANT,ADMIN_EMAIL,SEED_PASSWORD
+          script: |
+            set -euo pipefail
+            echo "=== Resetting DB and seeding tenant: $TENANT ==="
+            cd /opt/platform
+
+            echo "--- Stopping stack and wiping volumes ---"
+            docker compose --env-file /opt/platform/.env down -v
+
+            echo "--- Starting postgres ---"
+            docker compose --env-file /opt/platform/.env up -d postgres
+
+            echo "--- Running migrations ---"
+            docker compose --env-file /opt/platform/.env run --rm migrator
+
+            echo "--- Seeding data ---"
+            # Requires a `seeder` service in compose.yml (same pattern as agent-platform).
+            if docker compose --env-file /opt/platform/.env config --services | grep -qx seeder; then
+              docker compose --env-file /opt/platform/.env run --rm \
+                seeder seed --tenant "$TENANT" --admin-email "$ADMIN_EMAIL" --password "$SEED_PASSWORD"
+            else
+              echo "No seeder service yet — migrate-only reset"
+            fi
+
+            echo "--- Bringing stack back up ---"
+            docker compose --env-file /opt/platform/.env up -d
+
+            echo "=== Reset and seed complete ==="

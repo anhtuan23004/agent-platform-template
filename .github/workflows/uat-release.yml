@@ -1,0 +1,203 @@
+name: UAT — Release
+
+# Mirrors agent-platform hackathon-release for FPT Cloud UAT:
+#   prepare tag → build/push (registry) → SSH Cloud Server → compose + migrate + smoke
+#
+# GitHub Environment `uat`:
+#   Vars:    UAT_HOST, UAT_USER, APP_DOMAIN, REGISTRY, REPOSITORY, ACME_EMAIL
+#            (optional) S3_ENDPOINT, S3_BUCKET
+#   Secrets: UAT_SSH_PRIVATE_KEY, REGISTRY_USERNAME, REGISTRY_PASSWORD, OPENAI_API_KEY
+#            (optional) S3_ACCESS_KEY, S3_SECRET_KEY
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Docker image tag (default: 12-char SHA of HEAD)'
+        required: false
+        default: ''
+
+concurrency:
+  group: uat-deploy
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ${{ vars.REGISTRY }}
+  REPOSITORY: ${{ vars.REPOSITORY }}
+
+jobs:
+  prepare:
+    name: Compute release tag
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.value }}
+    steps:
+      - name: Resolve image tag
+        id: tag
+        run: |
+          INPUT="${{ github.event.inputs.tag }}"
+          SHA="${GITHUB_SHA::12}"
+          echo "value=${INPUT:-$SHA}" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build & push ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    needs: prepare
+    timeout-minutes: 30
+    # Enable when infra/docker/*.Dockerfile exist
+    if: ${{ false }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: server
+            dockerfile: infra/docker/server.Dockerfile
+          - service: web
+            dockerfile: infra/docker/web.Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build & push
+        uses: ./.github/actions/build-images
+        with:
+          image: ${{ matrix.service }}
+          dockerfile: ${{ matrix.dockerfile }}
+          registry: ${{ env.REGISTRY }}
+          registry-username: ${{ secrets.REGISTRY_USERNAME }}
+          registry-password: ${{ secrets.REGISTRY_PASSWORD }}
+          push: 'true'
+          platforms: linux/amd64
+          cache-ref: ${{ env.REGISTRY }}/${{ env.REPOSITORY }}:buildcache-${{ matrix.service }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}:${{ matrix.service }}-${{ needs.prepare.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}:${{ matrix.service }}-latest
+
+  deploy:
+    name: Deploy ${{ needs.prepare.outputs.tag }} to FPT Cloud Server
+    runs-on: ubuntu-latest
+    needs: [prepare]
+    # When build enabled: needs: [prepare, build]
+    timeout-minutes: 30
+    environment: uat
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.5
+        env:
+          REGISTRY: ${{ env.REGISTRY }}
+          REPOSITORY: ${{ env.REPOSITORY }}
+          IMAGE_TAG: ${{ needs.prepare.outputs.tag }}
+          APP_DOMAIN: ${{ vars.APP_DOMAIN }}
+          ACME_EMAIL: ${{ vars.ACME_EMAIL }}
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          S3_ENDPOINT: ${{ vars.S3_ENDPOINT }}
+          S3_BUCKET: ${{ vars.S3_BUCKET }}
+          S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
+          S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
+          GITHUB_REPO: ${{ github.repository }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        with:
+          host: ${{ vars.UAT_HOST }}
+          username: ${{ vars.UAT_USER || 'ubuntu' }}
+          key: ${{ secrets.UAT_SSH_PRIVATE_KEY }}
+          command_timeout: 25m
+          envs: REGISTRY,REPOSITORY,IMAGE_TAG,APP_DOMAIN,ACME_EMAIL,REGISTRY_USERNAME,REGISTRY_PASSWORD,OPENAI_API_KEY,S3_ENDPOINT,S3_BUCKET,S3_ACCESS_KEY,S3_SECRET_KEY,GITHUB_REPO,GITHUB_REF_NAME
+          script: |
+            set -euo pipefail
+            echo "=== Deploying $GITHUB_REPO@$GITHUB_REF_NAME tag=$IMAGE_TAG ==="
+
+            echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" \
+              -u "$REGISTRY_USERNAME" --password-stdin
+
+            SECRETS_FILE=/opt/platform/secrets.env
+            sudo mkdir -p /opt/platform
+            if [ ! -f "$SECRETS_FILE" ]; then
+              echo "=== First deploy: generating persistent app secrets ==="
+              printf 'POSTGRES_PASSWORD=%s\nAUTH_SECRET=%s\n' \
+                "$(openssl rand -hex 16)" \
+                "$(openssl rand -hex 32)" \
+                | sudo tee "$SECRETS_FILE" > /dev/null
+              sudo chmod 600 "$SECRETS_FILE"
+            fi
+            sudo chown "$(id -u):$(id -g)" "$SECRETS_FILE"
+            # shellcheck source=/dev/null
+            source "$SECRETS_FILE"
+
+            SERVER_IMAGE="$REGISTRY/$REPOSITORY:server-$IMAGE_TAG"
+            WEB_IMAGE="$REGISTRY/$REPOSITORY:web-$IMAGE_TAG"
+
+            sudo tee /opt/platform/.env > /dev/null <<EOF
+            NODE_ENV=production
+            PLATFORM_IMAGE_SERVER=$SERVER_IMAGE
+            PLATFORM_IMAGE_WEB=$WEB_IMAGE
+            PLATFORM_VERSION=$IMAGE_TAG
+            PLATFORM_MODULES=*
+            PLATFORM_DOMAIN=$APP_DOMAIN
+            PLATFORM_ACME_EMAIL=$ACME_EMAIL
+            PLATFORM_TLS_MODE=letsencrypt
+            DATABASE_URL=postgres://app:${POSTGRES_PASSWORD}@postgres:5432/app
+            POSTGRES_USER=app
+            POSTGRES_PASSWORD=$POSTGRES_PASSWORD
+            POSTGRES_DB=app
+            PUBLIC_URL=https://$APP_DOMAIN
+            AUTH_SECRET=$AUTH_SECRET
+            CORS_ORIGINS=https://$APP_DOMAIN
+            OPENAI_API_KEY=$OPENAI_API_KEY
+            S3_ENDPOINT=$S3_ENDPOINT
+            S3_BUCKET=$S3_BUCKET
+            S3_ACCESS_KEY=$S3_ACCESS_KEY
+            S3_SECRET_KEY=$S3_SECRET_KEY
+            EOF
+            sudo chown "$(id -u):$(id -g)" /opt/platform/.env
+            chmod 600 /opt/platform/.env
+
+            cd /opt/platform
+            REPO_RAW="https://raw.githubusercontent.com/$GITHUB_REPO/$GITHUB_REF_NAME"
+            curl -fsSL "$REPO_RAW/compose.yml" -o compose.yml || {
+              echo "compose.yml not in repo yet — skip pull/up until app images land"
+              exit 0
+            }
+
+            echo "=== Stopping app containers (free RAM on small UAT host) ==="
+            docker compose --env-file /opt/platform/.env stop server web 2>/dev/null || true
+            docker compose --env-file /opt/platform/.env rm -f server web 2>/dev/null || true
+
+            echo "=== Pulling images ==="
+            docker compose --env-file /opt/platform/.env pull
+
+            echo "=== Running migrations ==="
+            docker compose --env-file /opt/platform/.env run --rm migrator
+
+            echo "=== Starting stack ==="
+            docker compose --env-file /opt/platform/.env up -d --remove-orphans --wait --wait-timeout 180
+
+            echo "=== Smoke test: https://$APP_DOMAIN/health/ready ==="
+            code=000
+            for i in $(seq 1 12); do
+              code=$(curl -s -o /dev/null -w "%{http_code}" \
+                --max-time 5 "https://$APP_DOMAIN/health/ready" || true)
+              [ "$code" = "200" ] && break
+              echo "  attempt $i/12: HTTP $code — retrying…"
+              sleep 5
+            done
+            [ "$code" = "200" ] || { echo "Smoke test failed (HTTP $code)"; exit 1; }
+            echo "Deploy complete: $IMAGE_TAG"
+
+      - name: Job summary
+        if: success()
+        env:
+          IMAGE_TAG: ${{ needs.prepare.outputs.tag }}
+          APP_DOMAIN: ${{ vars.APP_DOMAIN }}
+        run: |
+          {
+            echo "## UAT deploy"
+            echo ""
+            echo "| | |"
+            echo "|-|-|"
+            echo "| **Tag** | \`${IMAGE_TAG}\` |"
+            echo "| **URL** | https://${APP_DOMAIN} |"
+          } >> "$GITHUB_STEP_SUMMARY"

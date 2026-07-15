@@ -1,0 +1,47 @@
+name: IaC
+
+# Validate infra tree. Expand with tofu fmt/validate when *.tf land under
+# infra/fpt-cloud-uat/.
+
+on:
+  pull_request:
+    paths:
+      - 'infra/**'
+      - '.github/workflows/iac.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'infra/**'
+      - '.github/workflows/iac.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: UAT infra docs present
+        run: |
+          set -euo pipefail
+          test -f infra/README.md
+          test -f infra/fpt-cloud-uat/README.md
+
+      - name: OpenTofu format/validate (when .tf exist)
+        run: |
+          set -euo pipefail
+          if ! command -v tofu >/dev/null 2>&1; then
+            echo "tofu not installed on runner — skip HCL checks"
+            exit 0
+          fi
+          found=0
+          while IFS= read -r -d '' d; do
+            found=1
+            echo "Validating $d"
+            (cd "$d" && tofu fmt -check -recursive && tofu init -backend=false && tofu validate)
+          done < <(find infra -type f -name '*.tf' -printf '%h\0' | sort -zu)
+          if [ "$found" -eq 0 ]; then
+            echo "No .tf files yet — OK for Portal-first UAT"
+          fi

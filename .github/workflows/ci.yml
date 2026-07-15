@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Structure & docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Required paths exist
+        run: |
+          set -euo pipefail
+          for p in \
+            STRUCTURE.md \
+            AGENTS.md \
+            CLAUDE.md \
+            packages/README.md \
+            modules/README.md \
+            infra/fpt-cloud-uat/README.md \
+            apps/README.md \
+            apps/composition/README.md \
+            apps/api/README.md \
+            apps/worker/README.md \
+            docs/architecture/index.md \
+            docs/harness/HARNESS.md \
+            docs/harness/FEATURE_INTAKE.md \
+            .github/workflows/uat-release.yml \
+            .github/actions/build-images/action.yml
+          do
+            test -e "$p" || { echo "missing: $p"; exit 1; }
+          done
+
+          test -x scripts/bin/harness-cli || test -f scripts/schema/001-init.sql
+
+      - name: No accidental secrets in tree
+        run: |
+          set -euo pipefail
+          if git ls-files | grep -E '(^|/)\.env$|\.tfvars$|secrets\.env$' ; then
+            echo "Do not commit .env / .tfvars / secrets.env"
+            exit 1
+          fi
+          echo "OK"
+
+      # Expand when apps/packages have real manifests:
+      # - pnpm install --frozen-lockfile
+      # - pnpm typecheck && pnpm lint && pnpm test

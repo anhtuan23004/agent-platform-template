@@ -1,0 +1,43 @@
+# TEMPLATE ONLY — tài liệu policy; không phải approval engine config.
+template_kind: hitl_policy
+template_version: '1.0'
+policy:
+  id: '{{POLICY_ID}}'
+  owner: '{{RISK_OR_DOMAIN_OWNER}}'
+  applies_to: ['{{AGENT_WORKFLOW_TOOL_ID}}']
+triggers:
+  effects: ['{{WRITE_CLASS}}']
+  risk_tiers: ['{{RISK_TIER}}']
+  confidence_below: '{{NUMBER_0_TO_1_OR_NOT_APPLICABLE}}'
+  cost_or_scope_exceeds: '{{THRESHOLD_OR_NOT_APPLICABLE}}'
+approvers:
+  eligibility_rule: '{{ROLE_PERMISSION_SEPARATION_OF_DUTIES}}'
+  quorum: '{{INTEGER}}'
+  step_up_auth_required: '{{TRUE_OR_FALSE}}'
+  requester_may_approve: '{{TRUE_OR_FALSE}}'
+proposal:
+  required_fields:
+    - actor_and_tenant
+    - sanitized_parameters
+    - expected_effect
+    - evidence_and_risk
+    - action_hash_and_idempotency_key
+  redact: ['{{FIELD_PATH}}']
+decision:
+  allowed: ['approve_once', 'edit_and_approve', 'reject', 'cancel']
+  expiry: '{{DURATION}}'
+  edit_creates_new_proposal: true
+  resume_requires_server_authorization: true
+transitions:
+  approved: '{{NEXT_STEP}}'
+  rejected: '{{TERMINAL_OR_DEFINED_STEP}}'
+  expired: '{{TERMINAL_OR_DEFINED_STEP}}'
+  cancelled: '{{TERMINAL_STATE}}'
+audit:
+  immutable_decision_event: '{{EVENT_TYPE}}'
+  retain_for: '{{DURATION_OR_POLICY_REFERENCE}}'
+operations:
+  stuck_approval_alert_after: '{{DURATION}}'
+  emergency_cancel_owner: '{{ROLE}}'
+  runbook_reference: '{{REFERENCE}}'
+
