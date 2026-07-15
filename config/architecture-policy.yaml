@@ -1,10 +1,12 @@
 # Architecture policy manifest — reviewed input for CI boundary lint.
 # This is not runtime configuration and must not contain credentials or mutable state.
+# Paths are language-neutral module areas (no assumed source-file extension yet).
 version: 1
 
 public_surfaces:
-  - packages/*/src/index.ts
-  - packages/core/src/events/index.ts
+  - packages/*/src
+  - packages/core/src/events
+  - packages/core/events
   - modules/*/application
   - modules/*/agent-tools
 

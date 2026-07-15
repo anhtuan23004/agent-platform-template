@@ -56,5 +56,5 @@ scripts/bin/harness-cli story update --id US-001 --status implemented --unit 1 -
 - A story can be implemented without every proof column if the story packet
   explains why **and** either another proof flag is set or `proof_waiver` is
   recorded.
-- Do not cite artifacts that are not in the tree (for example "TypeScript
-  stubs" when only README/`.gitkeep` exist).
+- Do not cite artifacts that are not in the tree (for example "source stubs"
+  when only README/`.gitkeep` exist).

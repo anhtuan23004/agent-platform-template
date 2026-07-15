@@ -4,14 +4,16 @@ Durable workflow, outbox dispatcher và background jobs.
 
 Tương đương agent-platform `apps/worker`: **cùng composition** với API, không mount HTTP.
 
-## Layout dự kiến
+## Layout dự kiến (language-neutral)
 
 ```text
 worker/
 └── src/
-    ├── main.ts    # buildPlatformComposition({ role: 'worker' }) → start
-    └── env.ts
+    ├── main    # buildPlatformComposition({ role: 'worker' }) → start
+    └── env
 ```
+
+Chọn stack khi review kiến trúc; chưa commit source/package manifest tại đây.
 
 ## Quy tắc
 

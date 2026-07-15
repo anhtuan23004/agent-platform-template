@@ -31,7 +31,7 @@ binary audit with coverage-illusion checks the CLI does not yet score.
 | Implemented without acceptance criteria | Implemented story whose matching work item lacks `acceptance_criteria`. | 15 |
 | Story / work-item status mismatch | e.g. matrix `implemented` while work item still `draft`. | 8 |
 | Evidence path missing | Path-like tokens in `evidence` that do not exist on disk. | 10 |
-| Missing artifact | Evidence claims TypeScript/stubs while no `.ts` / `package.json` exists under apps/packages/modules. | 12 |
+| Missing artifact | Evidence claims source/stubs/implementation while apps/packages/modules only have docs/`.gitkeep`. | 12 |
 
 ## Implemented gate (schema migration 007)
 

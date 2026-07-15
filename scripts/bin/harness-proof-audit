@@ -134,7 +134,7 @@ while IFS='|' read -r id evidence; do
         fi
         ;;
     esac
-  done < <(grep -oE '[A-Za-z0-9_./+*-]+\.(md|ts|tsx|js|yml|yaml|sql|json|Dockerfile)|[A-Za-z0-9_.-]+(/[A-Za-z0-9_.*+/-]+)+' <<<"$evidence" || true)
+  done < <(grep -oE '[A-Za-z0-9_./+*-]+\.(md|yml|yaml|sql|json|Dockerfile)|[A-Za-z0-9_.-]+(/[A-Za-z0-9_.*+/-]+)+' <<<"$evidence" || true)
 done < <(sqlite3 -separator '|' "$DB" "SELECT id, COALESCE(evidence,'') FROM story WHERE status='implemented' AND evidence IS NOT NULL AND length(trim(evidence))>0;")
 
 n="$(count_lines "$tmpdir/bad_paths")"
@@ -152,11 +152,12 @@ section "Missing artifacts for implemented claims"
 while IFS='|' read -r id evidence; do
   [[ -z "${id:-}" ]] && continue
   lower="$(printf '%s' "$evidence" | tr '[:upper:]' '[:lower:]')"
-  if grep -qE 'typescript|stubs?|\.ts\b' <<<"$lower"; then
+  # Claims of source/stubs/implementation without any non-doc artifact under apps|packages|modules.
+  if grep -qE 'stub|source code|implementation file|compiled|package manifest' <<<"$lower"; then
     if ! find "$ROOT/apps" "$ROOT/packages" "$ROOT/modules" \
-      \( -name '*.ts' -o -name '*.tsx' -o -name 'package.json' \) \
-      ! -path '*/node_modules/*' 2>/dev/null | grep -q .; then
-      echo "$id|claimed TypeScript/stubs but no .ts/package.json under apps|packages|modules" >> "$tmpdir/missing_art"
+      \( -type f ! -name 'README.md' ! -name '.gitkeep' ! -name '*.md' \) \
+      2>/dev/null | grep -q .; then
+      echo "$id|claimed source/stubs but apps|packages|modules only have docs/.gitkeep" >> "$tmpdir/missing_art"
     fi
   fi
 done < <(sqlite3 -separator '|' "$DB" "SELECT id, COALESCE(evidence,'') FROM story WHERE status='implemented';")

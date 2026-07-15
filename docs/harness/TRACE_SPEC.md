@@ -151,8 +151,8 @@ scripts/bin/harness-cli trace \
   --duration 4200 \
   --tokens 52000 \
   --actions "read access-control docs,created migration,updated audit tests,ran integration suite" \
-  --read "docs/product/permissions.md,docs/architecture/boundaries.md,src/auth/roles.ts" \
-  --changed "src/auth/roles.ts,src/audit/events.ts,tests/auth-roles.test.ts" \
+  --read "docs/product/permissions.md,docs/architecture/boundaries.md,docs/product/access-control.md" \
+  --changed "docs/product/access-control.md,docs/architecture/boundaries.md,docs/harness/TEST_MATRIX.md" \
   --decisions "kept manager role scoped to workspace,recorded audit event on every role change" \
   --errors "none" \
   --friction "Existing permission docs did not define delegated admin; added backlog item for role glossary." \

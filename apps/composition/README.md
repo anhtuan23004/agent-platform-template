@@ -12,17 +12,19 @@ contribution của `modules/*`.
 - module public surfaces và agent-tool contributions;
 - registry dùng chung cho API chat, workflow worker và resume path.
 
-## Layout dự kiến
+## Layout dự kiến (language-neutral)
 
 ```text
 composition/
 └── src/
-    ├── index.ts
-    ├── types.ts
-    ├── build.ts
-    ├── register-platform.ts
-    └── register-modules.ts
+    ├── index              # public entry
+    ├── types              # composition types
+    ├── build              # buildPlatformComposition
+    ├── register-platform  # runtime / persistence / governance
+    └── register-modules   # module public surfaces + agent-tools
 ```
+
+Chọn stack khi review kiến trúc; chưa commit source/package manifest tại đây.
 
 ## Dependency exception
 

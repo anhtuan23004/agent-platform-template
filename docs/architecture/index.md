@@ -24,6 +24,7 @@ cụ thể. LangChain/LangGraph là một adapter khả dụng, không phải do
 | Chủ đề | Mục đích |
 |---|---|
 | [Tổng quan](overview.md) | Capability map, luồng quyết định và ownership |
+| [Excalidraw skeleton](agent-platform-architecture.excalidraw) | 3 frames: Context · Layers · Request flow |
 | [Boundaries](boundaries.md) | Dependency rule, contracts, ports và adapters |
 | [Memory](memory.md) | Short-term/long-term memory, retention và retrieval |
 | [Planning](planning.md) | Deterministic workflow và adaptive planning |

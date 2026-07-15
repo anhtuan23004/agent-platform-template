@@ -161,41 +161,8 @@ if File.file?(pos) && File.file?(neg)
   end
 end
 
-# --- live scan when TypeScript sources exist ---
-ts_files = Dir.glob("#{root}/{apps,packages,modules}/**/*.{ts,tsx}").reject { |p| p.include?("node_modules") }
-unless ts_files.empty?
-  ts_files.each do |file|
-    rel = file.sub("#{root}/", "")
-    from_area =
-      case rel
-      when %r{\Aapps/api/} then "apps/api/src/index.ts"
-      when %r{\Aapps/worker/} then "apps/worker/src/index.ts"
-      when %r{\Aapps/composition/} then "apps/composition/src/index.ts"
-      when %r{\Apackages/agent-kernel/application/} then "packages/agent-kernel/application/src/index.ts"
-      when %r{\Apackages/agent-kernel/contracts/} then "packages/agent-kernel/contracts/src/index.ts"
-      when %r{\Apackages/agent-kernel/ports/} then "packages/agent-kernel/ports/src/index.ts"
-      when %r{\Apackages/runtime-} then rel
-      when %r{\Apackages/core/} then "packages/core/src/index.ts"
-      when %r{\Apackages/shared-} then rel
-      when %r{\Amodules/[^/]+/} then rel
-      else next
-      end
-
-    File.read(file).scan(%r{from\s+['"]([^'"]+)['"]|require\(['"]([^'"]+)['"]\)}).each do |a, b|
-      spec = a || b
-      next if spec.start_with?(".") # relative; skip deep resolution for now
-      # Map package-like imports to repo paths when they use workspace style.
-      import_path = spec.sub(%r{\A@?/?}, "")
-      next unless import_path.start_with?("apps/", "packages/", "modules/")
-      unless import_allowed?(rules, from_area, import_path)
-        err(errors, "live import forbidden: #{rel} imports #{import_path}")
-      end
-    end
-  end
-end
-
 if errors.empty?
-  puts "architecture-policy OK (schema + fixtures#{" + live ts" unless ts_files.empty?})"
+  puts "architecture-policy OK (schema + fixtures)"
   exit 0
 end
 warn "\n#{errors.size} architecture-policy error(s)"

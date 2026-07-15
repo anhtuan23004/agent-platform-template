@@ -66,6 +66,6 @@ jobs:
       - name: Harness proof audit (when harness.db present)
         run: scripts/bin/harness-proof-audit
 
-      # Expand when apps/packages have real manifests:
-      # - pnpm install --frozen-lockfile
-      # - pnpm typecheck && pnpm lint && pnpm test
+      # Expand when apps/packages have real toolchain manifests and tests:
+      # - install dependencies
+      # - typecheck / lint / test

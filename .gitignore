@@ -26,7 +26,7 @@ secrets.env
 .idea/
 .vscode/
 
-# Node (when apps land)
+# Local toolchain artifacts (when apps land)
 node_modules/
 .turbo/
 *.log
