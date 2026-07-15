@@ -1,0 +1,186 @@
+#!/usr/bin/env bash
+# Extended harness audit: implemented-without-proof, evidence paths,
+# story/work-item status mismatch, and missing artifacts.
+# Exit 0 only when no findings. Entropy contribution printed for humans.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+DB="${HARNESS_DB:-$ROOT/harness.db}"
+WEIGHT_IMPLEMENTED_WITHOUT_PROOF=15
+WEIGHT_EVIDENCE_PATH=10
+WEIGHT_STATUS_MISMATCH=8
+WEIGHT_MISSING_ARTIFACT=12
+
+if [[ ! -f "$DB" ]]; then
+  echo "harness.db not found at $DB — skip durable proof audit (no local state)."
+  exit 0
+fi
+
+if ! command -v sqlite3 >/dev/null 2>&1; then
+  echo "sqlite3 is required for harness-proof-audit" >&2
+  exit 2
+fi
+
+tmpdir="$(mktemp -d)"
+trap 'rm -rf "$tmpdir"' EXIT
+
+findings=0
+score=0
+
+section() {
+  printf '\n== %s ==\n' "$1"
+}
+
+count_lines() {
+  local f="$1"
+  if [[ -s "$f" ]]; then
+    wc -l < "$f" | tr -d ' '
+  else
+    echo 0
+  fi
+}
+
+# --- implemented without proof/waiver ---
+section "Implemented without proof or waiver"
+sqlite3 -separator '|' "$DB" "
+SELECT id, title,
+       unit_proof, integration_proof, e2e_proof, platform_proof,
+       COALESCE(proof_waiver, ''), COALESCE(evidence, '')
+FROM story
+WHERE status = 'implemented'
+  AND (COALESCE(unit_proof,0)+COALESCE(integration_proof,0)
+       +COALESCE(e2e_proof,0)+COALESCE(platform_proof,0)) = 0
+  AND (proof_waiver IS NULL OR length(trim(proof_waiver)) = 0);
+" > "$tmpdir/no_proof" || true
+n="$(count_lines "$tmpdir/no_proof")"
+if [[ "$n" -gt 0 ]]; then
+  findings=$((findings + n))
+  score=$((score + n * WEIGHT_IMPLEMENTED_WITHOUT_PROOF))
+  cat "$tmpdir/no_proof"
+else
+  echo "(none)"
+fi
+
+# --- implemented without acceptance criteria ---
+section "Implemented without acceptance criteria on work_item"
+sqlite3 -separator '|' "$DB" "
+SELECT s.id, s.title
+FROM story s
+LEFT JOIN work_item wi ON wi.id = s.id AND wi.type IN ('story', 'spike')
+WHERE s.status = 'implemented'
+  AND (
+    wi.id IS NULL
+    OR wi.acceptance_criteria IS NULL
+    OR length(trim(wi.acceptance_criteria)) = 0
+  );
+" > "$tmpdir/no_ac" || true
+n="$(count_lines "$tmpdir/no_ac")"
+if [[ "$n" -gt 0 ]]; then
+  findings=$((findings + n))
+  score=$((score + n * WEIGHT_IMPLEMENTED_WITHOUT_PROOF))
+  cat "$tmpdir/no_ac"
+else
+  echo "(none)"
+fi
+
+# --- story vs work-item status mismatch ---
+section "Story / work-item status mismatch"
+sqlite3 -separator '|' "$DB" "
+SELECT s.id,
+       s.status AS story_status,
+       COALESCE(wi.status, '<missing>') AS work_item_status,
+       s.title
+FROM story s
+LEFT JOIN work_item wi ON wi.id = s.id
+WHERE
+  (s.status = 'implemented' AND (wi.id IS NULL OR wi.status NOT IN ('done', 'changed')))
+  OR (s.status IN ('planned', 'in_progress') AND wi.status = 'done')
+  OR (s.status = 'retired' AND wi.status NOT IN ('retired', 'done'));
+" > "$tmpdir/mismatch" || true
+n="$(count_lines "$tmpdir/mismatch")"
+if [[ "$n" -gt 0 ]]; then
+  findings=$((findings + n))
+  score=$((score + n * WEIGHT_STATUS_MISMATCH))
+  cat "$tmpdir/mismatch"
+else
+  echo "(none)"
+fi
+
+# --- evidence path tokens that do not exist ---
+section "Evidence paths missing on disk"
+: > "$tmpdir/bad_paths"
+while IFS='|' read -r id evidence; do
+  [[ -z "${id:-}" ]] && continue
+  # Tokenize path-like fragments from evidence text.
+  while read -r token; do
+    [[ -z "$token" ]] && continue
+    # Strip trailing punctuation
+    token="${token%,}"
+    token="${token%.}"
+    token="${token%;}"
+    token="${token%)}"
+    token="${token#(}"
+    case "$token" in
+      /*|./*|../*|[A-Za-z0-9_.-]*/[A-Za-z0-9_./+*-]*)
+        # Drop globs for existence check; require a concrete prefix when possible.
+        if [[ "$token" == *'*'* ]]; then
+          prefix="${token%%\**}"
+          prefix="${prefix%/}"
+          if [[ -n "$prefix" && ! -e "$ROOT/$prefix" ]]; then
+            echo "$id|$token (glob prefix missing: $prefix)" >> "$tmpdir/bad_paths"
+          fi
+        elif [[ ! -e "$ROOT/$token" ]]; then
+          echo "$id|$token" >> "$tmpdir/bad_paths"
+        fi
+        ;;
+    esac
+  done < <(grep -oE '[A-Za-z0-9_./+*-]+\.(md|ts|tsx|js|yml|yaml|sql|json|Dockerfile)|[A-Za-z0-9_.-]+(/[A-Za-z0-9_.*+/-]+)+' <<<"$evidence" || true)
+done < <(sqlite3 -separator '|' "$DB" "SELECT id, COALESCE(evidence,'') FROM story WHERE status='implemented' AND evidence IS NOT NULL AND length(trim(evidence))>0;")
+
+n="$(count_lines "$tmpdir/bad_paths")"
+if [[ "$n" -gt 0 ]]; then
+  findings=$((findings + n))
+  score=$((score + n * WEIGHT_EVIDENCE_PATH))
+  cat "$tmpdir/bad_paths"
+else
+  echo "(none)"
+fi
+
+# --- missing artifacts for common false claims ---
+section "Missing artifacts for implemented claims"
+: > "$tmpdir/missing_art"
+while IFS='|' read -r id evidence; do
+  [[ -z "${id:-}" ]] && continue
+  lower="$(printf '%s' "$evidence" | tr '[:upper:]' '[:lower:]')"
+  if grep -qE 'typescript|stubs?|\.ts\b' <<<"$lower"; then
+    if ! find "$ROOT/apps" "$ROOT/packages" "$ROOT/modules" \
+      \( -name '*.ts' -o -name '*.tsx' -o -name 'package.json' \) \
+      ! -path '*/node_modules/*' 2>/dev/null | grep -q .; then
+      echo "$id|claimed TypeScript/stubs but no .ts/package.json under apps|packages|modules" >> "$tmpdir/missing_art"
+    fi
+  fi
+done < <(sqlite3 -separator '|' "$DB" "SELECT id, COALESCE(evidence,'') FROM story WHERE status='implemented';")
+
+n="$(count_lines "$tmpdir/missing_art")"
+if [[ "$n" -gt 0 ]]; then
+  findings=$((findings + n))
+  score=$((score + n * WEIGHT_MISSING_ARTIFACT))
+  cat "$tmpdir/missing_art"
+else
+  echo "(none)"
+fi
+
+if [[ "$score" -gt 100 ]]; then
+  score=100
+fi
+
+printf '\n=== Proof Audit Summary ===\n'
+echo "Findings: $findings"
+echo "Proof-audit entropy contribution: $score/100 (lower is better)"
+echo "Weights: implemented_without_proof=$WEIGHT_IMPLEMENTED_WITHOUT_PROOF evidence_path=$WEIGHT_EVIDENCE_PATH status_mismatch=$WEIGHT_STATUS_MISMATCH missing_artifact=$WEIGHT_MISSING_ARTIFACT"
+
+if [[ "$findings" -gt 0 ]]; then
+  exit 1
+fi
+echo "OK"
+exit 0

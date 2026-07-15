@@ -80,6 +80,14 @@ scripts/bin/harness-cli query stats
 scripts/bin/harness-cli query sql ...
 ```
 
+### Project proof & architecture gates
+
+```bash
+scripts/bin/harness-cli migrate          # applies 007 implemented-proof trigger
+scripts/bin/harness-proof-audit          # evidence paths, status mismatch, missing artifacts
+scripts/bin/check-architecture-policy    # policy schema + import fixtures (CI)
+```
+
 `scripts/bin/harness-cli import brownfield` seeds or refreshes the durable database
 from existing Harness v0 markdown in `docs/TEST_MATRIX.md`,
 `docs/harness/HARNESS_BACKLOG.md`. This keeps already-installed

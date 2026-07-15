@@ -1,0 +1,203 @@
+#!/usr/bin/env bash
+# Validate architecture-policy.yaml schema and enforce import fixtures.
+# Requires: ruby (stdlib yaml+json). Exit non-zero on failure.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+POLICY="$ROOT/config/architecture-policy.yaml"
+FIXTURES="$ROOT/scripts/architecture-fixtures"
+
+if [[ ! -f "$POLICY" ]]; then
+  echo "missing policy: $POLICY" >&2
+  exit 1
+fi
+
+if ! command -v ruby >/dev/null 2>&1; then
+  echo "ruby is required for check-architecture-policy" >&2
+  exit 2
+fi
+
+export POLICY FIXTURES ROOT
+ruby <<'RUBY'
+require "yaml"
+require "json"
+
+policy_path = ENV.fetch("POLICY")
+fixtures_dir = ENV.fetch("FIXTURES")
+root = ENV.fetch("ROOT")
+
+policy = YAML.load_file(policy_path)
+errors = []
+
+def err(errors, msg)
+  errors << msg
+  warn "FAIL: #{msg}"
+end
+
+# --- schema ---
+%w[version public_surfaces rules required_checks].each do |k|
+  err(errors, "missing top-level key: #{k}") unless policy.key?(k)
+end
+
+err(errors, "version must be Integer >= 1") unless policy["version"].is_a?(Integer) && policy["version"] >= 1
+err(errors, "public_surfaces must be Array") unless policy["public_surfaces"].is_a?(Array)
+err(errors, "rules must be Array") unless policy["rules"].is_a?(Array)
+err(errors, "required_checks must be Array") unless policy["required_checks"].is_a?(Array)
+
+expected_checks = %w[
+  public-surface-imports
+  forbidden-imports
+  no-cross-module-internals
+  schema-ownership
+  adapter-contract-tests
+]
+missing = expected_checks - Array(policy["required_checks"])
+err(errors, "required_checks missing: #{missing.join(', ')}") unless missing.empty?
+
+rules = Array(policy["rules"])
+rule_for = ->(from_pat) { rules.find { |r| r["from"] == from_pat } }
+
+# --- canonical allowlist invariants (docs/STRUCTURE + composition README) ---
+api = rule_for.call("apps/api")
+worker = rule_for.call("apps/worker")
+composition = rule_for.call("apps/composition")
+modules = rule_for.call("modules/*")
+
+[[api, "apps/api"], [worker, "apps/worker"]].each do |rule, name|
+  if rule.nil?
+    err(errors, "missing rule for #{name}")
+    next
+  end
+  allowed = Array(rule["may_import"])
+  unless allowed == ["apps/composition"]
+    err(errors, "#{name} may_import must be exactly [apps/composition], got #{allowed.inspect}")
+  end
+end
+
+if composition.nil?
+  err(errors, "missing rule for apps/composition")
+else
+  allowed = Array(composition["may_import"])
+  forbidden_domain = allowed.any? { |p| p.include?("modules/*/domain") || p.end_with?("/domain") }
+  err(errors, "apps/composition must not import modules/*/domain") if forbidden_domain
+  %w[packages/* modules/*/application modules/*/agent-tools].each do |need|
+    err(errors, "apps/composition missing may_import #{need}") unless allowed.include?(need)
+  end
+end
+
+if modules.nil?
+  err(errors, "missing rule for modules/*")
+else
+  allowed = Array(modules["may_import"])
+  if allowed.include?("packages/core")
+    err(errors, "modules/* must not import whole packages/core; use packages/core/events (or packages/core/src/events)")
+  end
+  ok_core = allowed.any? { |p| p == "packages/core/events" || p == "packages/core/src/events" || p == "packages/core/src/events/**" }
+  err(errors, "modules/* must allow packages/core/events public surface") unless ok_core
+end
+
+# --- path matcher used by fixtures ---
+def path_matches?(pattern, path)
+  return true if pattern == path
+  if pattern.end_with?("/*")
+    prefix = pattern[0...-1] # keep trailing /
+    return path.start_with?(prefix) || path == pattern[0...-2]
+  end
+  if pattern.include?("*")
+    # Allow descendants when the pattern names a directory-like glob.
+    # modules/*/application matches modules/foo/application and .../application/...
+    return true if File.fnmatch?(pattern, path, File::FNM_PATHNAME)
+    return true if File.fnmatch?(pattern, path)
+    return true if File.fnmatch?("#{pattern}/*", path, File::FNM_PATHNAME)
+    return true if File.fnmatch?("#{pattern}/**/*", path)
+    # packages/runtime-* → packages/runtime-langgraph/...
+    if pattern.end_with?("-*") || pattern.end_with?("*")
+      head = pattern.sub(/\*.*\z/, "")
+      return path.start_with?(head) if head.length >= 3 && !head.end_with?("/")
+    end
+    return false
+  end
+  # Exact directory allow/forbid: pattern matches path and descendants.
+  path == pattern || path.start_with?("#{pattern}/")
+end
+
+def import_allowed?(rules, from_path, import_path)
+  matching = rules.select { |r| path_matches?(r["from"], from_path) }
+  return false if matching.empty?
+
+  matching.any? do |r|
+    allowed = Array(r["may_import"])
+    forbidden = Array(r["forbidden"])
+    if allowed.any?
+      next false unless allowed.any? { |a| path_matches?(a, import_path) }
+      next false if forbidden.any? { |f| path_matches?(f, import_path) }
+      true
+    else
+      forbidden.none? { |f| path_matches?(f, import_path) }
+    end
+  end
+end
+
+# --- fixtures ---
+pos = File.join(fixtures_dir, "positive.json")
+neg = File.join(fixtures_dir, "negative.json")
+err(errors, "missing #{pos}") unless File.file?(pos)
+err(errors, "missing #{neg}") unless File.file?(neg)
+
+if File.file?(pos) && File.file?(neg)
+  JSON.parse(File.read(pos)).each do |ex|
+    from = ex.fetch("from")
+    import_to = ex.fetch("import")
+    unless import_allowed?(rules, from, import_to)
+      err(errors, "positive fixture rejected: #{from} -> #{import_to} (#{ex['name']})")
+    end
+  end
+  JSON.parse(File.read(neg)).each do |ex|
+    from = ex.fetch("from")
+    import_to = ex.fetch("import")
+    if import_allowed?(rules, from, import_to)
+      err(errors, "negative fixture allowed: #{from} -> #{import_to} (#{ex['name']})")
+    end
+  end
+end
+
+# --- live scan when TypeScript sources exist ---
+ts_files = Dir.glob("#{root}/{apps,packages,modules}/**/*.{ts,tsx}").reject { |p| p.include?("node_modules") }
+unless ts_files.empty?
+  ts_files.each do |file|
+    rel = file.sub("#{root}/", "")
+    from_area =
+      case rel
+      when %r{\Aapps/api/} then "apps/api/src/index.ts"
+      when %r{\Aapps/worker/} then "apps/worker/src/index.ts"
+      when %r{\Aapps/composition/} then "apps/composition/src/index.ts"
+      when %r{\Apackages/agent-kernel/application/} then "packages/agent-kernel/application/src/index.ts"
+      when %r{\Apackages/agent-kernel/contracts/} then "packages/agent-kernel/contracts/src/index.ts"
+      when %r{\Apackages/agent-kernel/ports/} then "packages/agent-kernel/ports/src/index.ts"
+      when %r{\Apackages/runtime-} then rel
+      when %r{\Apackages/core/} then "packages/core/src/index.ts"
+      when %r{\Apackages/shared-} then rel
+      when %r{\Amodules/[^/]+/} then rel
+      else next
+      end
+
+    File.read(file).scan(%r{from\s+['"]([^'"]+)['"]|require\(['"]([^'"]+)['"]\)}).each do |a, b|
+      spec = a || b
+      next if spec.start_with?(".") # relative; skip deep resolution for now
+      # Map package-like imports to repo paths when they use workspace style.
+      import_path = spec.sub(%r{\A@?/?}, "")
+      next unless import_path.start_with?("apps/", "packages/", "modules/")
+      unless import_allowed?(rules, from_area, import_path)
+        err(errors, "live import forbidden: #{rel} imports #{import_path}")
+      end
+    end
+  end
+end
+
+if errors.empty?
+  puts "architecture-policy OK (schema + fixtures#{" + live ts" unless ts_files.empty?})"
+  exit 0
+end
+warn "\n#{errors.size} architecture-policy error(s)"
+exit 1
+RUBY

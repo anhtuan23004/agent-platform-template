@@ -1,0 +1,42 @@
+[
+  {
+    "name": "api-bypasses-composition-to-packages",
+    "from": "apps/api/src/server.ts",
+    "import": "packages/agent-kernel/application/src/index.ts"
+  },
+  {
+    "name": "worker-bypasses-composition-to-runtime",
+    "from": "apps/worker/src/main.ts",
+    "import": "packages/runtime-langchain/src/index.ts"
+  },
+  {
+    "name": "composition-imports-module-domain",
+    "from": "apps/composition/src/register-modules.ts",
+    "import": "modules/knowledge/domain/aggregate.ts"
+  },
+  {
+    "name": "module-imports-core-internals",
+    "from": "modules/knowledge/application/ingest.ts",
+    "import": "packages/core/src/dispatcher/index.ts"
+  },
+  {
+    "name": "module-imports-whole-core",
+    "from": "modules/knowledge/application/ingest.ts",
+    "import": "packages/core"
+  },
+  {
+    "name": "runtime-imports-module",
+    "from": "packages/runtime-langgraph/src/adapter.ts",
+    "import": "modules/knowledge/application/index.ts"
+  },
+  {
+    "name": "contracts-import-runtime",
+    "from": "packages/agent-kernel/contracts/src/dto.ts",
+    "import": "packages/runtime-langchain/src/index.ts"
+  },
+  {
+    "name": "shared-imports-module",
+    "from": "packages/shared-db/src/pool.ts",
+    "import": "modules/identity/application/index.ts"
+  }
+]

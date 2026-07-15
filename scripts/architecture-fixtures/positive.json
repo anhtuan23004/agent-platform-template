@@ -1,0 +1,42 @@
+[
+  {
+    "name": "api-to-composition",
+    "from": "apps/api/src/server.ts",
+    "import": "apps/composition/src/index.ts"
+  },
+  {
+    "name": "worker-to-composition",
+    "from": "apps/worker/src/main.ts",
+    "import": "apps/composition/src/index.ts"
+  },
+  {
+    "name": "composition-to-application",
+    "from": "apps/composition/src/build.ts",
+    "import": "packages/agent-kernel/application/src/index.ts"
+  },
+  {
+    "name": "composition-to-module-application",
+    "from": "apps/composition/src/register-modules.ts",
+    "import": "modules/knowledge/application/index.ts"
+  },
+  {
+    "name": "composition-to-module-agent-tools",
+    "from": "apps/composition/src/register-modules.ts",
+    "import": "modules/knowledge/agent-tools/index.ts"
+  },
+  {
+    "name": "module-to-core-events",
+    "from": "modules/knowledge/application/ingest.ts",
+    "import": "packages/core/events"
+  },
+  {
+    "name": "module-to-contracts",
+    "from": "modules/identity/application/session.ts",
+    "import": "packages/agent-kernel/contracts/src/index.ts"
+  },
+  {
+    "name": "runtime-to-ports",
+    "from": "packages/runtime-langgraph/src/adapter.ts",
+    "import": "packages/agent-kernel/ports/src/index.ts"
+  }
+]
