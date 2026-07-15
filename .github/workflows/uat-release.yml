@@ -58,7 +58,7 @@ jobs:
           - service: web
             dockerfile: infra/docker/web.Dockerfile
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Build & push
         uses: ./.github/actions/build-images
