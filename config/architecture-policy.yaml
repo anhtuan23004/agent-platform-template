@@ -1,0 +1,54 @@
+# Architecture policy manifest — reviewed input for CI boundary lint.
+# This is not runtime configuration and must not contain credentials or mutable state.
+version: 1
+
+public_surfaces:
+  - packages/*/src/index.ts
+  - packages/core/src/events/index.ts
+  - modules/*/application
+  - modules/*/agent-tools
+
+rules:
+  - from: apps/api
+    may_import: [apps/composition, packages/*]
+  - from: apps/worker
+    may_import: [apps/composition, packages/*]
+  - from: apps/composition
+    may_import:
+      - packages/*
+      - modules/*/application
+      - modules/*/agent-tools
+      - modules/*/domain
+  - from: packages/agent-kernel/application
+    may_import:
+      - packages/agent-kernel/contracts
+      - packages/agent-kernel/ports
+      - packages/shared-*
+  - from: packages/agent-kernel/contracts
+    forbidden: [packages/runtime-*, modules/*, vendor-framework-types]
+  - from: packages/agent-kernel/ports
+    forbidden: [packages/runtime-*, modules/*, vendor-framework-types]
+  - from: packages/runtime-*
+    may_import:
+      - packages/agent-kernel/contracts
+      - packages/agent-kernel/ports
+      - packages/shared-*
+    forbidden: [modules/*]
+  - from: modules/*
+    may_import:
+      - packages/agent-kernel/contracts
+      - packages/shared-*
+      - packages/core
+    forbidden: [packages/runtime-*, apps/*]
+  - from: packages/core
+    may_import: [packages/shared-db, packages/shared-orchestration, packages/shared-*]
+    forbidden: [modules/*]
+  - from: packages/shared-*
+    forbidden: [modules/*, packages/runtime-*]
+
+required_checks:
+  - public-surface-imports
+  - forbidden-imports
+  - no-cross-module-internals
+  - schema-ownership
+  - adapter-contract-tests

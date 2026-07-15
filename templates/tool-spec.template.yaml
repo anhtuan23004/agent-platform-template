@@ -1,0 +1,52 @@
+# TEMPLATE ONLY — tài liệu đặc tả, không được load như runtime config.
+template_kind: tool_specification
+template_version: '1.0'
+tool:
+  id: '{{TOOL_ID}}'
+  version: '{{SEMANTIC_VERSION}}'
+  owner: '{{DOMAIN_TEAM}}'
+  purpose: '{{SINGLE_NARROW_PURPOSE}}'
+contracts:
+  input_schema_reference: '{{STRICT_SCHEMA_REFERENCE}}'
+  output_schema_reference: '{{STRICT_SCHEMA_REFERENCE}}'
+  max_input_size: '{{LIMIT}}'
+effect:
+  class: '{{READ_WRITE_REVERSIBLE_WRITE_IRREVERSIBLE_EXTERNAL_EXECUTION}}'
+  risk_tier: '{{LOW_MEDIUM_HIGH_CRITICAL}}'
+  external_side_effects: ['{{SIDE_EFFECT_OR_NONE}}']
+authorization:
+  required_permissions: ['{{PERMISSION}}']
+  tenant_scope: '{{TENANT_FILTER_RULE}}'
+  resource_scope: '{{RESOURCE_AUTHORIZATION_RULE}}'
+  domain_callee_rechecks_permission: true
+approval:
+  required: '{{TRUE_OR_FALSE}}'
+  policy_reference: '{{HITL_POLICY_REFERENCE_OR_NOT_APPLICABLE}}'
+execution:
+  timeout: '{{DURATION}}'
+  retry_policy: '{{NO_RETRY_OR_BOUNDED_RULE}}'
+  rate_limit: '{{LIMIT_AND_SCOPE}}'
+  concurrency_limit: '{{LIMIT_AND_SCOPE}}'
+  sandbox_or_egress_boundary: '{{BOUNDARY_OR_NOT_APPLICABLE}}'
+idempotency:
+  required: '{{TRUE_OR_FALSE}}'
+  key_scope: '{{RUN_STEP_ACTION_OR_NOT_APPLICABLE}}'
+  deduplication_window: '{{DURATION_OR_NOT_APPLICABLE}}'
+  reconciliation_reference: '{{ENDPOINT_OR_RUNBOOK}}'
+recovery:
+  compensation: '{{COMPENSATING_ACTION_OR_NOT_POSSIBLE}}'
+  manual_recovery: '{{RUNBOOK_REFERENCE}}'
+data:
+  input_classifications: ['{{CLASSIFICATION}}']
+  output_classifications: ['{{CLASSIFICATION}}']
+  redacted_fields: ['{{FIELD_PATH}}']
+  model_exposure_allowed: ['{{FIELD_PATH_OR_NONE}}']
+audit:
+  proposed_event: '{{EVENT_TYPE}}'
+  outcome_events: ['{{SUCCESS_FAILURE_RECONCILIATION_EVENT}}']
+  fields_to_record: ['{{NON_SECRET_FIELD}}']
+tests:
+  contract: ['{{TEST_CASE}}']
+  authorization: ['{{TEST_CASE}}']
+  duplicate_and_partial_failure: ['{{TEST_CASE}}']
+

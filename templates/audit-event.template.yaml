@@ -1,0 +1,51 @@
+# TEMPLATE ONLY — canonical event design; không phải event để publish trực tiếp.
+template_kind: audit_event_schema
+template_version: '1.0'
+event:
+  event_id: '{{UUID_OR_MONOTONIC_ID}}'
+  event_type: '{{NAMESPACE.ACTION.OUTCOME}}'
+  schema_version: '{{VERSION}}'
+  occurred_at: '{{RFC3339_TIMESTAMP}}'
+  recorded_at: '{{RFC3339_TIMESTAMP}}'
+scope:
+  tenant_id: '{{TENANT_ID}}'
+  environment: '{{ENVIRONMENT}}'
+identity:
+  actor_type: '{{HUMAN_SERVICE_AGENT}}'
+  actor_id: '{{ACTOR_ID}}'
+  on_behalf_of: '{{SUBJECT_ID_OR_NOT_APPLICABLE}}'
+agent:
+  agent_id: '{{AGENT_ID}}'
+  agent_version: '{{VERSION}}'
+  model_provider: '{{PROVIDER_OR_NOT_APPLICABLE}}'
+  model_id: '{{MODEL_OR_NOT_APPLICABLE}}'
+correlation:
+  run_id: '{{RUN_ID}}'
+  correlation_id: '{{CORRELATION_ID}}'
+  causation_id: '{{PARENT_EVENT_ID_OR_NOT_APPLICABLE}}'
+  trace_id: '{{TRACE_ID}}'
+action:
+  name: '{{ACTION}}'
+  resource_type: '{{RESOURCE_TYPE}}'
+  resource_id: '{{RESOURCE_ID_OR_REDACTED_REFERENCE}}'
+  tool_id_and_version: '{{TOOL_REFERENCE_OR_NOT_APPLICABLE}}'
+  effect: '{{READ_OR_WRITE_CLASS}}'
+policy:
+  decision: '{{ALLOW_DENY_REQUIRE_APPROVAL}}'
+  policy_version: '{{VERSION}}'
+  approval_id: '{{APPROVAL_ID_OR_NOT_APPLICABLE}}'
+outcome:
+  status: '{{PROPOSED_STARTED_SUCCEEDED_FAILED_RECONCILED}}'
+  error_class: '{{SAFE_ERROR_CLASS_OR_NOT_APPLICABLE}}'
+  idempotency_key_hash: '{{HASH_OR_NOT_APPLICABLE}}'
+evidence:
+  references: ['{{IMMUTABLE_REFERENCE}}']
+  sanitized_summary: '{{NO_CHAIN_OF_THOUGHT_NO_SECRET_SUMMARY}}'
+data_governance:
+  classification: '{{CLASSIFICATION}}'
+  redacted_fields: ['{{FIELD_PATH}}']
+  retention_policy: '{{REFERENCE}}'
+integrity:
+  transactional_with_domain_mutation: '{{TRUE_FALSE_NOT_APPLICABLE}}'
+  integrity_control: '{{OUTBOX_APPEND_ONLY_SIGNATURE_OR_OTHER}}'
+
