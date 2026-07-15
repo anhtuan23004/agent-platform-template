@@ -53,6 +53,8 @@ scripts/bin/harness-cli tool remove --name deploy-check
 | `score-trace` | Observability | Score trace detail against lane requirements. | optional `--id` |
 | `score-context` | Context selection | Score trace reads against compiled context rules. | trace id |
 | `audit` | Entropy auditing | Run drift checks and compute entropy score. | none |
+| `harness-proof-audit` (script) | Entropy auditing | Evidence paths, status mismatch, missing artifacts, implemented-without-proof. | none |
+| `check-architecture-policy` (script) | Architecture gate | Validate `architecture-policy.yaml` + positive/negative import fixtures. | none |
 | `propose` | Entropy auditing | Generate improvement proposals from friction, failures, interventions, and audit findings. | optional `--commit`, optional `--from-failures` |
 | `eval add` | Verification | Register a held-in or held-out regression eval case. | `--id`, `--split`, `--command`, `--component` |
 | `eval run` | Verification | Run registered eval cases and record pass/fail. | optional `--proposal` |

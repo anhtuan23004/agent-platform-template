@@ -19,7 +19,7 @@ Cloud Server + Compose). Production release (ECS/MFKE) is out of scope.
 
 | agent-platform | Template |
 |---|---|
-| `ci.yml` | `ci.yml` |
+| `ci.yml` | Structure paths, secrets scan, architecture-policy fixtures, harness-proof-audit |
 | `iac.yml` | `iac.yml` |
 | `hackathon-release.yml` | `uat-release.yml` |
 | `hackathon-rollback.yml` | `uat-rollback.yml` |

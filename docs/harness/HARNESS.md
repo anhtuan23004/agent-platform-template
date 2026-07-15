@@ -206,8 +206,8 @@ scripts/bin/harness-cli story verify-all
 ```
 
 Do not mark a story implemented until the required acceptance criteria and
-proof for that story exist.
-
+proof for that story exist. Schema migration `007` rejects invalid
+`implemented` transitions; also run `scripts/bin/harness-proof-audit`.
 
 ## Trace And Friction
 

@@ -3,7 +3,10 @@
 `scripts/bin/harness-cli audit` detects drift in durable Harness state and
 prints an entropy score. Lower is better.
 
-## Checks
+Project gate (required in CI): `scripts/bin/harness-proof-audit` extends the
+binary audit with coverage-illusion checks the CLI does not yet score.
+
+## Checks (`harness-cli audit`)
 
 | Category | Meaning | Weight |
 | --- | --- | --- |
@@ -19,6 +22,34 @@ prints an entropy score. Lower is better.
 | Sub-agent trace without work item | Child traces that are not bounded by a work item. | 8 |
 | Parent trace with failed child | Completed parent traces with failed or partial child traces. | 8 |
 | Delegated task without proof | Delegated task traces whose task/story has no evidence. | 5 |
+
+## Checks (`harness-proof-audit`)
+
+| Category | Meaning | Weight |
+| --- | --- | --- |
+| Implemented without proof/waiver | `story.status=implemented` with all proof flags 0 and empty `proof_waiver`. | 15 |
+| Implemented without acceptance criteria | Implemented story whose matching work item lacks `acceptance_criteria`. | 15 |
+| Story / work-item status mismatch | e.g. matrix `implemented` while work item still `draft`. | 8 |
+| Evidence path missing | Path-like tokens in `evidence` that do not exist on disk. | 10 |
+| Missing artifact | Evidence claims TypeScript/stubs while no `.ts` / `package.json` exists under apps/packages/modules. | 12 |
+
+## Implemented gate (schema migration 007)
+
+SQLite triggers reject `story` inserts/updates to `implemented` unless:
+
+1. Matching `work_item` (`story`/`spike`) has non-empty `acceptance_criteria`, and
+2. At least one proof flag is set **or** `proof_waiver` is non-empty, and
+3. `evidence` is non-empty.
+
+Set a waiver only via explicit SQL until the CLI grows a flag:
+
+```bash
+scripts/bin/harness-cli query sql \
+  "UPDATE story SET proof_waiver = 'docs-only skeleton; tracked in US-00N' WHERE id = 'US-001';"
+```
+
+Migration 007 also demotes pre-existing invalid `implemented` rows to
+`in_progress`.
 
 ## Score
 
@@ -48,3 +79,10 @@ The score is capped at 100.
 
 Audit findings feed `scripts/bin/harness-cli propose`, which can turn repeated
 drift into proposed backlog items.
+
+Always run both:
+
+```bash
+scripts/bin/harness-cli audit
+scripts/bin/harness-proof-audit
+```

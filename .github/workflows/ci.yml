@@ -37,6 +37,10 @@ jobs:
             docs/architecture/index.md \
             docs/harness/HARNESS.md \
             docs/harness/FEATURE_INTAKE.md \
+            config/architecture-policy.yaml \
+            scripts/bin/check-architecture-policy \
+            scripts/bin/harness-proof-audit \
+            scripts/schema/007-implemented-proof-gate.sql \
             .github/workflows/uat-release.yml \
             .github/actions/build-images/action.yml
           do
@@ -44,6 +48,8 @@ jobs:
           done
 
           test -x scripts/bin/harness-cli || test -f scripts/schema/001-init.sql
+          test -x scripts/bin/check-architecture-policy
+          test -x scripts/bin/harness-proof-audit
 
       - name: No accidental secrets in tree
         run: |
@@ -53,6 +59,12 @@ jobs:
             exit 1
           fi
           echo "OK"
+
+      - name: Architecture policy schema + fixtures
+        run: scripts/bin/check-architecture-policy
+
+      - name: Harness proof audit (when harness.db present)
+        run: scripts/bin/harness-proof-audit
 
       # Expand when apps/packages have real manifests:
       # - pnpm install --frozen-lockfile

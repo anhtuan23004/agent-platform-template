@@ -9,16 +9,17 @@ public_surfaces:
   - modules/*/agent-tools
 
 rules:
+  # Delivery hosts only talk to the composition root.
   - from: apps/api
-    may_import: [apps/composition, packages/*]
+    may_import: [apps/composition]
   - from: apps/worker
-    may_import: [apps/composition, packages/*]
+    may_import: [apps/composition]
+  # Sole composition root: package entrypoints + module public surfaces only.
   - from: apps/composition
     may_import:
       - packages/*
       - modules/*/application
       - modules/*/agent-tools
-      - modules/*/domain
   - from: packages/agent-kernel/application
     may_import:
       - packages/agent-kernel/contracts
@@ -34,11 +35,13 @@ rules:
       - packages/agent-kernel/ports
       - packages/shared-*
     forbidden: [modules/*]
+  # Modules emit via core/events public surface only — not packages/core internals.
   - from: modules/*
     may_import:
       - packages/agent-kernel/contracts
       - packages/shared-*
-      - packages/core
+      - packages/core/events
+      - packages/core/src/events
     forbidden: [packages/runtime-*, apps/*]
   - from: packages/core
     may_import: [packages/shared-db, packages/shared-orchestration, packages/shared-*]
